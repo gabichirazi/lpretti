@@ -35,19 +35,22 @@ def init_lpr(model_path, device):
     return model, None  # No separate OCR reader needed for Tesseract
 
 def generate_ocr(ocr_reader, plate_crop):
-    # Preprocess image for better OCR
-    gray = cv2.cvtColor(plate_crop, cv2.COLOR_BGR2GRAY)
+    # Preprocess image for better OCR using HSV
+    hsv = cv2.cvtColor(plate_crop, cv2.COLOR_BGR2HSV)
+    
+    # Extract V channel (Value/Brightness) - best for OCR
+    _, _, v_channel = cv2.split(hsv)
     
     # Resize if too small (Tesseract works better with larger images)
-    h, w = gray.shape
+    h, w = v_channel.shape
     if h < 50 or w < 150:
         scale = max(50 / h, 150 / w, 2.0)
         new_w = int(w * scale)
         new_h = int(h * scale)
-        gray = cv2.resize(gray, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
+        v_channel = cv2.resize(v_channel, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
     
     # Apply threshold to get better contrast
-    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    _, thresh = cv2.threshold(v_channel, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     
     # Use only PSM 7 (fastest and best for license plates)
     custom_config = r'--oem 3 --psm 11 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
