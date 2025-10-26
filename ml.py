@@ -5,7 +5,10 @@ import base64
 from ultralytics import YOLO
 import torch
 import os
-import easyocr
+import pytesseract
+from PIL import Image
+import numpy as np
+from collections import Counter, deque
 
 def init_camera():
     camera = cv2.VideoCapture(0)
@@ -25,18 +28,61 @@ def init_lpr(model_path, device):
     model_path = 'license_plate_detector.pt'
     model = YOLO(model_path)
     model.to(device)
-    ocr_reader = easyocr.Reader(['ro', 'en'], gpu=(device == 'cuda'))
-    print("ML incarcat")
-    return model, ocr_reader
+    # Configure Tesseract for license plate OCR
+    pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
+    print("ML incarcat (Tesseract OCR)")
+    return model, None  # No separate OCR reader needed for Tesseract
 
 def generate_ocr(ocr_reader, plate_crop):
-    ocr_results = ocr_reader.readtext(
-        plate_crop, 
-        detail=1,
-        allowlist='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')
-    high_conf_texts = [text for (bbox, text, conf) in ocr_results if conf > 0.98]
-    plate_text = ''.join(high_conf_texts).replace(' ', '') if high_conf_texts else ''
-    return plate_text
+    # Preprocess image for better OCR
+    gray = cv2.cvtColor(plate_crop, cv2.COLOR_BGR2GRAY)
+    
+    # Resize if too small (Tesseract works better with larger images)
+    h, w = gray.shape
+    if h < 50 or w < 150:
+        scale = max(50 / h, 150 / w, 2.0)
+        new_w = int(w * scale)
+        new_h = int(h * scale)
+        gray = cv2.resize(gray, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
+    
+    # Apply threshold to get better contrast
+    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    
+    # Use only PSM 7 (fastest and best for license plates)
+    custom_config = r'--oem 3 --psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    
+    try:
+        # Get text directly (fastest approach)
+        text = pytesseract.image_to_string(thresh, config=custom_config).strip()
+        text = ''.join(c for c in text if c.isalnum()).upper()
+        
+        return text if len(text) > 6 else ''
+    except Exception as e:
+        return ''
+
+# Buffer for voting system
+ocr_buffer = deque(maxlen=4)
+
+def get_most_common_plate():
+    """Return the most common plate from last 5 readings"""
+    if not ocr_buffer:
+        return ''
+    
+    # Filter out empty strings
+    valid_plates = [p for p in ocr_buffer if p]
+    if not valid_plates:
+        return ''
+    
+    # Get most common plate
+    counter = Counter(valid_plates)
+    most_common = counter.most_common(1)[0]
+    plate_text, count = most_common
+    
+    # Only return if appears at least 2 times (majority voting)
+    if count >= 2:
+        print(f"OCR: '{plate_text}' ({count}/4 frame-uri)")
+        return plate_text
+    return ''
 
 def generate_frames(camera, model, ocr_reader, device):
         ret, frame = camera.read()
@@ -96,12 +142,19 @@ def generate_frames(camera, model, ocr_reader, device):
                     
                     plate_crop = frame[y1_crop:y2_crop, x1_crop:x2_crop].copy()
                     if plate_crop.size > 0 and plate_crop.shape[0] > 10 and plate_crop.shape[1] > 10:
-                        # Allowlist: only uppercase letters and digits (typical for license plates)
-                        # Request detailed results to get confidence scores
+                        # Run OCR and add to buffer
                         plate_text = generate_ocr(ocr_reader, plate_crop)
                         if plate_text:
-                            # Draw OCR text below the bounding box
-                            cv2.putText(frame, plate_text, (x1, y2+20), 
+                            ocr_buffer.append(plate_text)
+                        else:
+                            ocr_buffer.append('')  # Add empty to maintain buffer size
+                        
+                        # Get most common plate from last 5 frames
+                        verified_plate = get_most_common_plate()
+                        
+                        if verified_plate:
+                            # Draw verified OCR text below the bounding box
+                            cv2.putText(frame, verified_plate, (x1, y2+20), 
                                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
         
         # Optimize JPEG encoding

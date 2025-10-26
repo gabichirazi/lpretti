@@ -2,3 +2,5 @@ flask
 flask-socketio
 opencv-python
 ultralytics
+pytesseract
+pillow
