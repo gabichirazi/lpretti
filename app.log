@@ -1,0 +1,17 @@
+nohup: ignoring input
+[ WARN:0@1.467] global cap_v4l.cpp:999 open VIDEOIO(V4L2:/dev/video0): can't open camera by index
+[ERROR:0@1.467] global obsensor_uvc_stream_channel.cpp:158 getStreamChannelGroup Camera index out of range
+Using device: cuda
+GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+YOLO params -> imgsz=960, conf=0.45, iou=0.6
+Loading EasyOCR (ro, en)...
+EasyOCR ready
+Traceback (most recent call last):
+  File "/home/gabriel/code/working/cameraSocket/main.py", line 115, in <module>
+    socketio.run(app, host='0.0.0.0', port=5000)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/gabriel/code/working/cameraSocket/venv/lib/python3.13/site-packages/flask_socketio/__init__.py", line 650, in run
+    raise RuntimeError('The Werkzeug web server is not '
+    ...<2 lines>...
+                       'run() method to disable this error.')
+RuntimeError: The Werkzeug web server is not designed to run in production. Pass allow_unsafe_werkzeug=True to the run() method to disable this error.
