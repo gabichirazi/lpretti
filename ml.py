@@ -11,7 +11,8 @@ import numpy as np
 from collections import Counter, deque
 
 def init_camera():
-    camera = cv2.VideoCapture(0)
+    # camera = cv2.VideoCapture(0)
+    camera = cv2.VideoCapture("demo.mp4") # 0 pt webcam
     camera.set(cv2.CAP_PROP_BUFFERSIZE, 5)
     camera.set(cv2.CAP_PROP_FPS, 30)
     camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
@@ -49,19 +50,19 @@ def generate_ocr(ocr_reader, plate_crop):
     _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     
     # Use only PSM 7 (fastest and best for license plates)
-    custom_config = r'--oem 3 --psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    custom_config = r'--oem 3 --psm 11 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
     
     try:
         # Get text directly (fastest approach)
         text = pytesseract.image_to_string(thresh, config=custom_config).strip()
         text = ''.join(c for c in text if c.isalnum()).upper()
         
-        return text if len(text) > 6 else ''
+        return text if len(text) > 4 else ''
     except Exception as e:
         return ''
 
 # Buffer for voting system
-ocr_buffer = deque(maxlen=4)
+ocr_buffer = deque(maxlen=2)
 
 def get_most_common_plate():
     """Return the most common plate from last 5 readings"""
@@ -121,7 +122,7 @@ def generate_frames(camera, model, ocr_reader, device):
                     class_name = model.names[class_id]
                     
                     # Only process detections with confidence > 55%
-                    if confidence < 0.55:
+                    if confidence < 0.35:
                         continue
                     
                     # Draw bounding box
