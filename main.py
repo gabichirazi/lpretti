@@ -1,11 +1,6 @@
 from flask import Flask, render_template
 from flask_socketio import SocketIO
-import cv2
 import base64
-from ultralytics import YOLO
-import torch
-import os
-import easyocr
 import ml
 
 app = Flask(__name__)
@@ -21,7 +16,10 @@ def index():
 def run_model():
     while True:
         buffer = ml.generate_frames(camera, model, ocr_reader, device)
-        socketio.emit('video_frame', {'data': base64.b64encode(buffer).decode()})
+        if buffer is not None:
+            socketio.emit('video_frame', {'data': base64.b64encode(buffer).decode()})
+        # Sleep to ensure we don't read the same frame multiple times
+        # 30 FPS = ~0.033s per frame, use slightly less to ensure fresh frames
         socketio.sleep(0.02)
 
 @socketio.on('connect')
