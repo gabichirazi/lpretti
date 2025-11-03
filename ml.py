@@ -1,4 +1,3 @@
-from flask_socketio import SocketIO
 import cv2
 from ultralytics import YOLO
 import torch
@@ -58,7 +57,6 @@ def generate_ocr(ocr_reader, plate_crop):
             return ''
         
         # PaddleOCR format: [[[bbox, (text, conf)], [bbox, (text, conf)], ...]]
-        # result[0] = list of detected text regions
         # Each region: [[[x1,y1], [x2,y2], [x3,y3], [x4,y4]], (text, confidence)]
         plate_text = ''
         
@@ -136,12 +134,11 @@ def generate_frames(camera, model, ocr_reader, device):
             x1, y1, x2, y2 = best_box['x1'], best_box['y1'], best_box['x2'], best_box['y2']
 
             plate_crop = frame[y1:y2, x1:x2].copy()
-            if plate_crop.size > 0: #and plate_crop.shape[0] > 10 and plate_crop.shape[1] > 10:
+            if plate_crop.size > 0:
                 plate_text = generate_ocr(ocr_reader, plate_crop)
                 if plate_text:
                     cv2.putText(frame, plate_text, (x1, y2+20), 
                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-        
-        # Optimize JPEG encoding
+
         _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
         return buffer
