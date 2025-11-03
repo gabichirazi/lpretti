@@ -7,7 +7,7 @@ app = Flask(__name__)
 socketio = SocketIO(app)
 camera = ml.init_camera()
 device = ml.init_device()
-model, ocr_reader = ml.init_lpr('license_plate_detector.pt', device)
+model, ocr_reader = ml.init_lpr(device)
 
 @app.route('/')
 def index():
@@ -16,11 +16,12 @@ def index():
 def run_model():
     while True:
         buffer = ml.generate_frames(camera, model, ocr_reader, device)
-        if buffer is not None:
+        if buffer is None:
+            print("Video finalizat/eroare camera.")
+            return
+        else:
             socketio.emit('video_frame', {'data': base64.b64encode(buffer).decode()})
-        # Sleep to ensure we don't read the same frame multiple times
-        # 30 FPS = ~0.033s per frame, use slightly less to ensure fresh frames
-        socketio.sleep(0.02)
+        socketio.sleep(0.033)
 
 @socketio.on('connect')
 def handle_connect():
